@@ -6,7 +6,17 @@ const express = require('express');
 const router = express.Router();
 const hourMs = (1000 * 60 * 60);
 
-function getEarthquakes(callback) {
+// These are for the cached data
+let lastGetEarthquakesResult = null;
+let lastGetEarthquakesResultTime = 0;
+
+const getEarthquakes = (callback) => {
+  // If it's within the last minute we use our cached data
+  if (lastGetEarthquakesResultTime + 60000 > Date.now()) {
+    callback(null, lastGetEarthquakesResult);
+    return;
+  }
+
   superagent
     .get('http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.atom')
     .end((apiError, apiResponse) => {
@@ -17,6 +27,9 @@ function getEarthquakes(callback) {
 
       const xmlBody = apiResponse.body.toString();
       const jsonObj = xmlParser.parse(xmlBody);
+      // Update cache data
+      lastGetEarthquakesResult = jsonObj;
+      lastGetEarthquakesResultTime = Date.now();
       callback(null, jsonObj);
     });
 }
