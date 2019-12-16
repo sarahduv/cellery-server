@@ -1,0 +1,104 @@
+'use strict';
+
+const superagent = require('superagent');
+const xmlParser = require('fast-xml-parser');
+const express = require('express');
+const router = express.Router();
+const hourMs = (1000 * 60 * 60);
+
+function getEarthquakes(callback) {
+  superagent
+    .get('http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.atom')
+    .end((apiError, apiResponse) => {
+      if (apiError) {
+        callback(apiError, null);
+        return;
+      }
+
+      const xmlBody = apiResponse.body.toString();
+      const jsonObj = xmlParser.parse(xmlBody);
+      callback(null, jsonObj);
+    });
+}
+
+function getHourlyEarthquakes(callback) {
+  getEarthquakes((apiError, earthquakesJson) => {
+    if (apiError) {
+      callback(apiError, null);
+      return;
+    }
+
+    const countsPerHour = {};
+    for (const entry of earthquakesJson.feed.entry) {
+      // Get when the earthquake happened in milliseconds
+      const whenMs = (new Date(entry.updated)).getTime();
+
+      // Round the when down to the nearest hour
+      const hour = whenMs - (whenMs % hourMs);
+
+      if (hour in countsPerHour) {
+        // Add 1 earthqake to the hour bucket
+        countsPerHour[hour] += 1;
+      } else {
+        // It's not there so it's the first earthquake that hour
+        countsPerHour[hour] = 1;
+      }
+    }
+
+    // Since highcharts needs a sorted array of arrays
+    const series = Object.entries(countsPerHour)
+      .sort((a, b) => a[0] - b[0]);
+    callback(null, series);
+  });
+}
+
+function getStrongestEarthquake(callback) {
+  getEarthquakes((apiError, earthquakesJson) => {
+    if (apiError) {
+      callback(apiError, null);
+      return;
+    }
+
+    let strongestEarthquake = 0;
+    let strongestLocation = '';
+
+    for (const entry of earthquakesJson.feed.entry) {
+      const strength = Number.parseFloat(
+        entry.title.match(/M ([0-9.]+) /)[1]
+      );
+
+      if (strength > strongestEarthquake) {
+        strongestEarthquake = strength;
+        strongestLocation = entry.title.match(/ - (.+)/)[1];
+      }
+    }
+
+    callback(null, { strongestEarthquake, strongestLocation });
+  });
+}
+
+router.get('/api/hourlyEarthquakes', (request, response) => {
+  getHourlyEarthquakes((apiError, earthquakesJson) => {
+    // If we had an error return st atus 500 and the error and log 
+    if (apiError) {
+      console.log("Api error: ", apiError);
+      response.status(500).json(apiError).end();
+      return;
+    }
+    response.status(200).json(earthquakesJson);
+  });
+});
+
+router.get('/api/strongestEarthquake', (request, response) => {
+  getStrongestEarthquake((apiError, earthquakesJson) => {
+    // If we had an error return st atus 500 and the error and log 
+    if (apiError) {
+      console.log("Api error: ", apiError);
+      response.status(500).json(apiError).end();
+      return;
+    }
+    response.status(200).json(earthquakesJson);
+  });
+});
+
+module.exports = router;
