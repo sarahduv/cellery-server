@@ -4,7 +4,7 @@ const superagent = require('superagent');
 const xmlParser = require('fast-xml-parser');
 const express = require('express');
 const router = express.Router();
-const hourMs = (1000 * 60 * 60);
+const hourMs = 1000 * 60 * 60;
 
 // These are for the cached data
 let lastGetEarthquakesResult = null;
@@ -13,7 +13,7 @@ let lastGetEarthquakesResultTime = 0;
 let lastWeatherAlertsResult = null;
 let lastWeatherAlertsResultTime = 0;
 
-const getWeatherAlerts = (callback) => {
+const getWeatherAlerts = callback => {
   // If it's within the last minute we use our cached data
   if (lastWeatherAlertsResultTime + 60000 > Date.now()) {
     callback(null, lastWeatherAlertsResult);
@@ -35,9 +35,9 @@ const getWeatherAlerts = (callback) => {
       lastWeatherAlertsResultTime = Date.now();
       callback(null, jsonObj);
     });
-}
+};
 
-const getEarthquakes = (callback) => {
+const getEarthquakes = callback => {
   // If it's within the last minute we use our cached data
   if (lastGetEarthquakesResultTime + 60000 > Date.now()) {
     callback(null, lastGetEarthquakesResult);
@@ -45,7 +45,9 @@ const getEarthquakes = (callback) => {
   }
 
   superagent
-    .get('http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.atom')
+    .get(
+      'http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.atom'
+    )
     .end((apiError, apiResponse) => {
       if (apiError) {
         callback(apiError, null);
@@ -59,7 +61,7 @@ const getEarthquakes = (callback) => {
       lastGetEarthquakesResultTime = Date.now();
       callback(null, jsonObj);
     });
-}
+};
 
 function getHourlyEarthquakes(callback) {
   getEarthquakes((apiError, earthquakesJson) => {
@@ -71,7 +73,7 @@ function getHourlyEarthquakes(callback) {
     const countsPerHour = {};
     for (const entry of earthquakesJson.feed.entry) {
       // Get when the earthquake happened in milliseconds
-      const whenMs = (new Date(entry.updated)).getTime();
+      const whenMs = new Date(entry.updated).getTime();
 
       // Round the when down to the nearest hour
       const hour = whenMs - (whenMs % hourMs);
@@ -86,8 +88,7 @@ function getHourlyEarthquakes(callback) {
     }
 
     // Since highcharts needs a sorted array of arrays
-    const series = Object.entries(countsPerHour)
-      .sort((a, b) => a[0] - b[0]);
+    const series = Object.entries(countsPerHour).sort((a, b) => a[0] - b[0]);
     callback(null, series);
   });
 }
@@ -103,9 +104,7 @@ function getStrongestEarthquake(callback) {
     let strongestLocation = '';
 
     for (const entry of earthquakesJson.feed.entry) {
-      const strength = Number.parseFloat(
-        entry.title.match(/M ([0-9.]+) /)[1]
-      );
+      const strength = Number.parseFloat(entry.title.match(/M ([0-9.]+) /)[1]);
 
       if (strength > strongestEarthquake) {
         strongestEarthquake = strength;
@@ -127,28 +126,26 @@ function getDepthCorrelation(callback) {
     const series = [];
 
     for (const entry of earthquakesJson.feed.entry) {
-      const strength = Number.parseFloat(
-        entry.title.match(/M ([0-9.]+) /)[1]
-      );
+      const strength = Number.parseFloat(entry.title.match(/M ([0-9.]+) /)[1]);
 
-      const depth = Number.parseFloat(
-        entry.summary.match(/([0-9.]+) km/)[1]
-      );
+      const depth = Number.parseFloat(entry.summary.match(/([0-9.]+) km/)[1]);
 
-      series.push([strength, depth])
+      series.push([strength, depth]);
     }
 
     callback(null, { series });
   });
 }
 
-
 router.get('/api/hourlyEarthquakes', (request, response) => {
   getHourlyEarthquakes((apiError, earthquakesJson) => {
-    // If we had an error return st atus 500 and the error and log 
+    // If we had an error return st atus 500 and the error and log
     if (apiError) {
-      console.log("Api error: ", apiError);
-      response.status(500).json(apiError).end();
+      console.log('Api error: ', apiError);
+      response
+        .status(500)
+        .json(apiError)
+        .end();
       return;
     }
     response.status(200).json(earthquakesJson);
@@ -157,10 +154,13 @@ router.get('/api/hourlyEarthquakes', (request, response) => {
 
 router.get('/api/strongestEarthquake', (request, response) => {
   getStrongestEarthquake((apiError, earthquakesJson) => {
-    // If we had an error return st atus 500 and the error and log 
+    // If we had an error return st atus 500 and the error and log
     if (apiError) {
-      console.log("Api error: ", apiError);
-      response.status(500).json(apiError).end();
+      console.log('Api error: ', apiError);
+      response
+        .status(500)
+        .json(apiError)
+        .end();
       return;
     }
     response.status(200).json(earthquakesJson);
@@ -169,10 +169,13 @@ router.get('/api/strongestEarthquake', (request, response) => {
 
 router.get('/api/depthCorrelation', (request, response) => {
   getDepthCorrelation((apiError, earthquakesJson) => {
-    // If we had an error return st atus 500 and the error and log 
+    // If we had an error return st atus 500 and the error and log
     if (apiError) {
-      console.log("Api error: ", apiError);
-      response.status(500).json(apiError).end();
+      console.log('Api error: ', apiError);
+      response
+        .status(500)
+        .json(apiError)
+        .end();
       return;
     }
     response.status(200).json(earthquakesJson);
@@ -181,15 +184,17 @@ router.get('/api/depthCorrelation', (request, response) => {
 
 router.get('/api/weatherAlertsTest', (request, response) => {
   getWeatherAlerts((apiError, earthquakesJson) => {
-    // If we had an error return st atus 500 and the error and log 
+    // If we had an error return st atus 500 and the error and log
     if (apiError) {
-      console.log("Api error: ", apiError);
-      response.status(500).json(apiError).end();
+      console.log('Api error: ', apiError);
+      response
+        .status(500)
+        .json(apiError)
+        .end();
       return;
     }
     response.status(200).json(earthquakesJson);
   });
 });
-
 
 module.exports = router;
