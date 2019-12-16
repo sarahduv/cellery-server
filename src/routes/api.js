@@ -10,6 +10,33 @@ const hourMs = (1000 * 60 * 60);
 let lastGetEarthquakesResult = null;
 let lastGetEarthquakesResultTime = 0;
 
+let lastWeatherAlertsResult = null;
+let lastWeatherAlertsResultTime = 0;
+
+const getWeatherAlerts = (callback) => {
+  // If it's within the last minute we use our cached data
+  if (lastWeatherAlertsResultTime + 60000 > Date.now()) {
+    callback(null, lastWeatherAlertsResult);
+    return;
+  }
+
+  superagent
+    .get('http://alerts.weather.gov/cap/us.php')
+    .end((apiError, apiResponse) => {
+      if (apiError) {
+        callback(apiError, null);
+        return;
+      }
+
+      const xmlBody = apiResponse.body.toString();
+      const jsonObj = xmlParser.parse(xmlBody);
+      // Update cache data
+      lastWeatherAlertsResult = jsonObj;
+      lastWeatherAlertsResultTime = Date.now();
+      callback(null, jsonObj);
+    });
+}
+
 const getEarthquakes = (callback) => {
   // If it's within the last minute we use our cached data
   if (lastGetEarthquakesResultTime + 60000 > Date.now()) {
@@ -90,6 +117,32 @@ function getStrongestEarthquake(callback) {
   });
 }
 
+function getDepthCorrelation(callback) {
+  getEarthquakes((apiError, earthquakesJson) => {
+    if (apiError) {
+      callback(apiError, null);
+      return;
+    }
+
+    const series = [];
+
+    for (const entry of earthquakesJson.feed.entry) {
+      const strength = Number.parseFloat(
+        entry.title.match(/M ([0-9.]+) /)[1]
+      );
+
+      const depth = Number.parseFloat(
+        entry.summary.match(/([0-9.]+) km/)[1]
+      );
+
+      series.push([strength, depth])
+    }
+
+    callback(null, { series });
+  });
+}
+
+
 router.get('/api/hourlyEarthquakes', (request, response) => {
   getHourlyEarthquakes((apiError, earthquakesJson) => {
     // If we had an error return st atus 500 and the error and log 
@@ -113,5 +166,30 @@ router.get('/api/strongestEarthquake', (request, response) => {
     response.status(200).json(earthquakesJson);
   });
 });
+
+router.get('/api/depthCorrelation', (request, response) => {
+  getDepthCorrelation((apiError, earthquakesJson) => {
+    // If we had an error return st atus 500 and the error and log 
+    if (apiError) {
+      console.log("Api error: ", apiError);
+      response.status(500).json(apiError).end();
+      return;
+    }
+    response.status(200).json(earthquakesJson);
+  });
+});
+
+router.get('/api/weatherAlertsTest', (request, response) => {
+  getWeatherAlerts((apiError, earthquakesJson) => {
+    // If we had an error return st atus 500 and the error and log 
+    if (apiError) {
+      console.log("Api error: ", apiError);
+      response.status(500).json(apiError).end();
+      return;
+    }
+    response.status(200).json(earthquakesJson);
+  });
+});
+
 
 module.exports = router;
